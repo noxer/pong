@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"image"
 	"image/color"
+	_ "image/png"
 	"log"
 	"math/rand"
 	"os"
@@ -13,6 +16,7 @@ import (
 	"github.com/hajimehoshi/ebiten/ebitenutil"
 	ttf "github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/text"
+	"github.com/noxer/pong/res"
 	"golang.org/x/image/font"
 )
 
@@ -142,16 +146,18 @@ func update(screen *ebiten.Image) error {
 
 	if state.Direction.X > 0 {
 		if state.Position.X < state.Area.BottomRight.X-25 && state.Position.X+state.Direction.X >= state.Area.BottomRight.X-25 {
-			fmt.Printf("Right check: %f\n", state.Position.Y)
 			if state.Position.Y >= state.Players[1].Position.Y && state.Position.Y < state.Players[1].Position.Y+state.Players[1].Height {
 				state.Direction.X = -state.Direction.X
+				p := ((state.Position.Y - state.Players[1].Position.Y) / state.Players[1].Height) - 0.5
+				state.Direction.Y += p
 			}
 		}
 	} else {
 		if state.Position.X > state.Area.TopLeft.X+25 && state.Position.X+state.Direction.X <= state.Area.TopLeft.X+25 {
-			fmt.Printf(" Left check: %f\n", state.Position.Y)
 			if state.Position.Y >= state.Players[0].Position.Y && state.Position.Y < state.Players[0].Position.Y+state.Players[0].Height {
 				state.Direction.X = -state.Direction.X
+				p := ((state.Position.Y - state.Players[0].Position.Y) / state.Players[0].Height) - 0.5
+				state.Direction.Y += p
 			}
 		}
 	}
@@ -159,19 +165,23 @@ func update(screen *ebiten.Image) error {
 	state.Position = state.Position.Add(state.Direction)
 	if state.Position.Y <= state.Area.TopLeft.Y+5 {
 		state.Direction.Y = -state.Direction.Y
+		state.Position.Y += (state.Area.TopLeft.Y + 5) - state.Position.Y
 	}
 	if state.Position.Y >= state.Area.BottomRight.Y-5 {
 		state.Direction.Y = -state.Direction.Y
+		state.Position.Y += (state.Area.BottomRight.Y - 5) - state.Position.Y
 	}
 
 	if state.Position.X <= state.Area.TopLeft.X+5 {
 		state.Players[1].Points++
+		state.Round++
 		state.Position = state.Area.Center()
 		state.Direction.X = 1
 		state.Direction.Y = rand.Float64() - 0.5
 	}
 	if state.Position.X >= state.Area.BottomRight.X-5 {
 		state.Players[0].Points++
+		state.Round++
 		state.Position = state.Area.Center()
 		state.Direction.X = -1
 		state.Direction.Y = rand.Float64() - 0.5
@@ -225,7 +235,6 @@ func update(screen *ebiten.Image) error {
 	op.GeoM.Translate(state.Players[1].Position.X, state.Players[1].Position.Y)
 	screen.DrawImage(state.Players[1].Racket, op)
 
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %f", ebiten.CurrentFPS()))
 	return nil
 }
 
@@ -244,8 +253,12 @@ func drawTextCenter(dst *ebiten.Image, f font.Face, t string, x, y int, c color.
 }
 
 func initGame() error {
+	png, _, err := image.Decode(bytes.NewReader(res.Ball))
+	if err != nil {
+		return err
+	}
 	state.Round = 1
-	img, _, err := ebitenutil.NewImageFromFile("ball.png", ebiten.FilterDefault)
+	img, err := ebiten.NewImageFromImage(png, ebiten.FilterDefault)
 	if err != nil {
 		return err
 	}
@@ -269,8 +282,6 @@ func initGame() error {
 	if err = initFonts(); err != nil {
 		return err
 	}
-
-	fmt.Printf("Initialized Game:\n%#v\n", state)
 
 	return nil
 }
